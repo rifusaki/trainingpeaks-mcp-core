@@ -8,15 +8,29 @@ over both stored backends.
 
 import os
 
-from tp_mcp.auth.encrypted import (
-    clear_credential_encrypted,
-    get_credential_encrypted,
-    store_credential_encrypted,
-)
-from tp_mcp.auth.keyring import CredentialResult, is_keyring_available
-from tp_mcp.auth.keyring import clear_credential as clear_credential_keyring
-from tp_mcp.auth.keyring import get_credential as get_credential_keyring
-from tp_mcp.auth.keyring import store_credential as store_credential_keyring
+from tp_mcp.auth.credential import CredentialResult
+
+
+def _keyring():
+    """Lazily import the optional keyring backend."""
+    from tp_mcp.auth import keyring
+
+    return keyring
+
+
+def _encrypted():
+    """Lazily import the optional encrypted-file backend."""
+    from tp_mcp.auth import encrypted
+
+    return encrypted
+
+
+def is_keyring_available() -> bool:
+    """Whether the optional keyring backend is importable and usable."""
+    try:
+        return _keyring().is_keyring_available()
+    except ImportError:
+        return False
 
 ENV_VAR_NAME = "TP_AUTH_COOKIE"
 
@@ -48,13 +62,13 @@ def store_credential(cookie: str) -> CredentialResult:
         CredentialResult with success status.
     """
     # Always store in encrypted file first (reliable fallback)
-    encrypted_result = store_credential_encrypted(cookie)
+    encrypted_result = _encrypted().store_credential_encrypted(cookie)
 
     # Also try keyring if available (may fail due to app permissions on macOS,
     # or the Windows Credential Manager blob-size limit for large cookies).
     if is_keyring_available():
         try:
-            keyring_result = store_credential_keyring(cookie)
+            keyring_result = _keyring().store_credential(cookie)
             if keyring_result.success:
                 return CredentialResult(
                     success=True,
@@ -94,12 +108,18 @@ def get_credential() -> CredentialResult:
 
     # Try keyring first
     if is_keyring_available():
-        result = get_credential_keyring()
+        result = _keyring().get_credential()
         if result.success:
             return result
 
-    # Fall back to encrypted file
-    return get_credential_encrypted()
+    # Fall back to encrypted file (may be absent on core-only installs)
+    try:
+        return _encrypted().get_credential_encrypted()
+    except ImportError:
+        return CredentialResult(
+            success=False,
+            message="No credential stored and no storage backends installed; set TP_AUTH_COOKIE.",
+        )
 
 
 def clear_credential() -> CredentialResult:
@@ -112,10 +132,13 @@ def clear_credential() -> CredentialResult:
 
     # Clear from keyring
     if is_keyring_available():
-        results.append(clear_credential_keyring())
+        results.append(_keyring().clear_credential())
 
     # Clear from encrypted file
-    results.append(clear_credential_encrypted())
+    try:
+        results.append(_encrypted().clear_credential_encrypted())
+    except ImportError:
+        results.append(CredentialResult(success=False, message="Encrypted-file backend not installed"))
 
     # Return success if any succeeded
     if any(r.success for r in results):

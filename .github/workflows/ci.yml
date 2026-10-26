@@ -43,6 +43,35 @@ jobs:
       - name: Run tests
         run: pytest tests/ -v
 
+  core-only:
+    # Regression gate for headless consumers (e.g. Catence) that install
+    # only the client/auth core: no MCP SDK, no keyring, no cryptography.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Create core-only venv (no extras)
+        run: |
+          python -m venv /tmp/core
+          /tmp/core/bin/pip install --upgrade pip
+          /tmp/core/bin/pip install .
+      - name: Assert optional backends are absent
+        run: |
+          ! /tmp/core/bin/python -c "import keyring" ; ! /tmp/core/bin/python -c "import cryptography" ; ! /tmp/core/bin/python -c "import mcp"
+      - name: Client/auth core imports and env auth works without backends
+        run: |
+          /tmp/core/bin/python - <<'EOF'
+          import os
+          os.environ["TP_AUTH_COOKIE"] = "ci-fake-cookie"
+          import tp_mcp.client, tp_mcp.auth, tp_mcp.core_cli
+          cred = tp_mcp.auth.get_credential()
+          assert cred.success and cred.cookie == "ci-fake-cookie", cred
+          print("core-only env auth OK; backend:", tp_mcp.auth.get_storage_backend())
+          EOF
+
   legacy-client:
     # Release-blocking compat gate: a REAL SDK 1.x client must work against
     # the v2 server (deterministic - does not depend on any vendor's rollout).

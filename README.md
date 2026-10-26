@@ -1,5 +1,45 @@
 # TrainingPeaks MCP Server
 
+> **Fork note (rifusaki/trainingpeaks-mcp-core).** This fork tracks
+> [`JamsusMaximus/trainingpeaks-mcp`](https://github.com/JamsusMaximus/trainingpeaks-mcp)
+> as its upstream and stays layout-identical so upstream merges are trivial.
+> Its purpose is to be consumable as a **Python package dependency exposing
+> only the client/auth core** (`tp_mcp.client` + `tp_mcp.auth`): Catence and
+> other headless consumers install it without the MCP server runtime.
+> The server, tools, and apps code is deliberately left in place (dormant),
+> so enabling more of it later is an install/packaging decision, not a
+> resurrection. Contributions here are merge-only plus small upstreamable
+> patches; anything Catence-specific goes upstream when possible.
+
+## Core package usage (headless / env auth)
+
+The credential path checks the `TP_AUTH_COOKIE` environment variable first,
+> before keyring or the encrypted file. On a core-only install
+> (`pip install .` with no extras), `keyring` and `cryptography` are not
+> installed and are never imported along the env-auth path — regression-tested
+> in `tests/test_client/test_env_auth_core.py`.
+
+```sh
+export TP_AUTH_COOKIE='<your Production_tpAuth cookie value>'
+python -c "import tp_mcp.client, tp_mcp.auth; print('core imports fine')"
+```
+
+A minimal debugging CLI is installed as `tp-mcp-core`
+> (`tp-mcp-core auth-status`, `tp-mcp-core auth-clear`) that exposes only
+> credential utilities — no server. The full CLI remains `tp-mcp`
+> (install `.[server]` or `.[dev]` for the MCP runtime).
+
+## Optional extras
+
+- `server` — the MCP server runtime (`mcp`, keyring, cryptography)
+- `storage` — keyring + encrypted-file credential backends
+- `browser` — browser-cookie extraction
+- `dev` — test/lint tooling plus everything above
+
+The base install is intentionally minimal: `httpx` and `pydantic` only.
+
+---
+
 <a href="https://glama.ai/mcp/servers/@JamsusMaximus/TrainingPeaks-MCP">
   <img width="380" height="200" src="https://glama.ai/mcp/servers/@JamsusMaximus/TrainingPeaks-MCP/badge" alt="TrainingPeaks MCP server" />
 </a>

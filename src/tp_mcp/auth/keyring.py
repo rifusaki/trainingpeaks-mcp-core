@@ -1,26 +1,12 @@
 """Keyring-based credential storage for TrainingPeaks authentication."""
 
-from dataclasses import dataclass, field
-
 import keyring
 from keyring.errors import KeyringError, NoKeyringError
 
+from tp_mcp.auth.credential import CredentialResult
+
 SERVICE_NAME = "trainingpeaks-mcp"
 USERNAME = "production_tpauth"
-
-
-@dataclass
-class CredentialResult:
-    """Result of a credential operation."""
-
-    success: bool
-    message: str
-    cookie: str | None = field(default=None, repr=False)
-
-    def __repr__(self) -> str:
-        """Safe repr that never exposes cookie value."""
-        cookie_status = "present" if self.cookie else "None"
-        return f"CredentialResult(success={self.success}, cookie=<{cookie_status}>, message={self.message!r})"
 
 
 def is_keyring_available() -> bool:
